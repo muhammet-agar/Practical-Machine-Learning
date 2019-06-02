@@ -1,0 +1,220 @@
+---
+title: "Practical Machine Learning"
+author: "Muhammet Agar"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Download data
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## What you should submit
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+## How the model was built
+The outcome variable for this case is ‘classe’ - a factor variable with 5 levels. This was measured this way: The participants were asked to perform 1 set of 10 reps of a certain exercise in 5 different motions:
+
+- exactly according to the specification (Class A)
+- throwing the elbows to the front (Class B)
+- lifting the dumbbell only halfway (Class C)
+- lowering the dumbbell only halfway (Class D)
+- throwing the hips to the front (Class E)
+
+The first class, class A, corresponds to a perfect execution of the exercise, while the 4 other classes corresponds to the classic mistakes. 
+The evaluation of the predictions will be based on maximizing accuracy and minimizing out-of-sample error. 
+Two models will be tested using classification trees and random forest algorithms. The model with the highest accuracy will be chosen as the final model.
+
+## Cross validation
+Cross validation (cv) will be performed by subsampling the training data set into a training and test data set. These are called trainset and testset. The sampling will be based on a 60/40 split. The final model will be tested on the initial testing data. 
+
+## The expected out of sample error
+The expected out-of-sample error will correspond to the quantity: 1-accuracy in the cross-validation data. Accuracy is the proportion of correct classified observation over the total sample in the testset data set. Expected accuracy is the expected accuracy in the out-of-sample data set (i.e. original testing data set). Thus, the expected value of the out-of-sample error will correspond to the expected number of misclassified observations/total observations in the test data set, which is the quantity: 1-accuracy found from the cross-validation data set.
+
+##Loading the required packages
+```{library(caret);library(randomForest);library(rpart)}
+library(caret)
+library(randomForest)
+library(rpart)
+```
+
+## Downloading the data
+```{trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"; testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"}
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+```
+
+## Loading data to memory
+```{training <- read.csv(url(trainUrl))}
+training <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+```
+
+## Cleaning the data
+```{kula}
+training <- training[,-c(1:7)]
+testing <- testing[,-c(1:7)]
+training$classe <- factor(training$classe)
+```
+## Checking how many NA's
+```{sum(is.na(training))}
+sum(is.na(training))
+```
+```{}
+[1] 1925102
+```
+
+Now I first take the columns with no NA’s a put them into their own dataframe
+```{brr}
+notna <- sapply(training, function(x)all(!is.na(x)))
+```
+I then apply this for the two data sets
+```{le varrio}
+training <- training[,notna]
+testing <- testing[,notna]
+```
+Now I make use of the near zero variance function. In order to compare the models, I create initial two new data sets, a new training and test set. 
+```{ryggen}
+removecol <- nearZeroVar(training, saveMetrics=TRUE)
+training2 <- training[,!removecol$nzv== TRUE]
+testing2 <- testing[,!removecol$nzv==TRUE]
+```
+I create an in-sample test set out of the training set, before I do my final out-of-sample test.
+```{wow}
+inTrain = createDataPartition(y=training$classe, p=0.6, list=FALSE)
+trainset = training[inTrain,]
+testset= training[-inTrain,]
+```
+
+## Modeling
+Random forest
+```{rf}
+mod_rf <- randomForest(classe~., data=trainset)
+pred_rf <- predict(mod_rf, testset)
+confusionMatrix(pred_rf, testset$classe)
+```
+Confusion Matrix and Statistics
+```{}
+Reference
+Prediction    A    B    C    D    E
+         A 2229    8    0    0    0
+         B    3 1505   17    0    0
+         C    0    5 1348    7    2
+         D    0    0    3 1278    4
+         E    0    0    0    1 1436
+
+Overall Statistics
+                                          
+               Accuracy : 0.9936          
+                 95% CI : (0.9916, 0.9953)
+    No Information Rate : 0.2845          
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.9919          
+                                          
+ Mcnemar's Test P-Value : NA              
+
+Statistics by Class:
+
+                     Class: A Class: B Class: C Class: D Class: E
+Sensitivity            0.9987   0.9914   0.9854   0.9938   0.9958
+Specificity            0.9986   0.9968   0.9978   0.9989   0.9998
+Pos Pred Value         0.9964   0.9869   0.9897   0.9946   0.9993
+Neg Pred Value         0.9995   0.9979   0.9969   0.9988   0.9991
+Prevalence             0.2845   0.1935   0.1744   0.1639   0.1838
+Detection Rate         0.2841   0.1918   0.1718   0.1629   0.1830
+Detection Prevalence   0.2851   0.1944   0.1736   0.1638   0.1832
+Balanced Accuracy      0.9986   0.9941   0.9916   0.9964   0.9978
+```
+
+Boosting
+```{boost}
+mod_gbm <- train(classe ~., data=trainset, method="gbm")
+```
+This took a looong time, so I stopped before it finished.
+So in my case, boosting was not an option and the computaional power needed made it unfit.
+
+Classification
+```{skejs}
+mod_rpart <- rpart(classe ~., data=trainset, method="class")
+pred_rpart <- predict(mod_rpart, testset, type="class")
+confusionMatrix(pred_rpart, testset$classe)
+```
+Confusion Matrix and Statistics
+```{}
+
+          Reference
+Prediction    A    B    C    D    E
+         A 2033  267   92  161   32
+         B   78  918  129  149  145
+         C   55  162  998   84  141
+         D   51  100  105  722   69
+         E   15   71   44  170 1055
+
+Overall Statistics
+                                          
+               Accuracy : 0.7298          
+                 95% CI : (0.7198, 0.7396)
+    No Information Rate : 0.2845          
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.6561          
+                                          
+ Mcnemar's Test P-Value : < 2.2e-16       
+
+Statistics by Class:
+
+                     Class: A Class: B Class: C Class: D Class: E
+Sensitivity            0.9108   0.6047   0.7295  0.56143   0.7316
+Specificity            0.9017   0.9208   0.9318  0.95046   0.9532
+Pos Pred Value         0.7865   0.6469   0.6931  0.68959   0.7786
+Neg Pred Value         0.9622   0.9066   0.9422  0.91705   0.9404
+Prevalence             0.2845   0.1935   0.1744  0.16391   0.1838
+Detection Rate         0.2591   0.1170   0.1272  0.09202   0.1345
+Detection Prevalence   0.3295   0.1809   0.1835  0.13344   0.1727
+Balanced Accuracy      0.9063   0.7628   0.8307  0.75594   0.8424
+```
+
+## The out of sample error for the testset
+```{out}
+outofsample <- (1 - as.numeric(confusionMatrix(testset$classe, pred_rf)$overall[1]))
+```
+```{}
+[1] 0.006372674
+```
+
+The final prediction
+```{lol}
+predfinal <- predict(mod_rf, testing, type="class")
+predfinal
+```
+
+```{}
+ 1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 
+ B  A  B  A  A  E  D  B  A  A  B  C  B  A  E  E  A  B  B  B 
+Levels: A B C D E
+```
+
+Function to generate files with predictions to submit for assignment
+```{fund}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predfinal)
+```
